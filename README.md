@@ -1,46 +1,61 @@
-# LexVerify AI: Legal Document Validator (v3.0)
+# LexVerify AI: Legal Document Validator (v3.1)
 
-**LexVerify AI** is an intelligent, browser-based legal document auditor. It uses **:contentReference[oaicite:0]{index=0} Gemini AI** to perform deep *legal reasoning* on contracts—identifying missing mandatory clauses, onerous payment terms, aggressive clawback provisions, and prohibited restrictive covenants.
+**LexVerify AI** is a high-performance, browser-based legal document auditor. It leverages **:contentReference[oaicite:0]{index=0} Gemini 2.5 Flash AI** to perform deep *legal reasoning* on contracts—identifying missing mandatory clauses, onerous payment terms, aggressive clawback provisions, and prohibited restrictive covenants.
 
 ---
 
 ## 🚀 Key Features
 
 - **AI-Powered Validation**  
-  Analyzes text for legal risks using the **Gemini 2.5 Flash** model.
+  Deep analysis of contract text using the **Gemini 2.5 Flash** model with structured JSON output.
 
-- **OCR Support**  
-  Built-in **Tesseract.js** integration allows users to upload images (JPG/PNG) of physical documents for text extraction.
+- **Built-in OCR Support**  
+  Integrated **Tesseract.js** allows users to upload images (JPG/PNG) of physical documents for instant text extraction.
 
-- **PDF Intelligence**  
-  Integrated **pdf.js** for direct text extraction from multi-page PDF documents.
+- **Native PDF Reading**  
+  Integrated **PDF.js** for direct text extraction from multi-page PDF documents without server-side processing.
 
 - **Risk Categorization**  
-  Specifically flags:
+  Specifically trained to flag:
   - **Onerous Clauses**: Unfairly burdensome payment or liability terms  
   - **Clawback Provisions**: Aggressive recovery of bonuses or fees  
   - **Prohibited Terms**: Illegal non-competes or restraint of trade
 
+- **Robust Error Handling**  
+  Implements exponential backoff and retry logic for API calls to ensure stability under heavy load or poor network conditions.
+
 - **Privacy-First**  
-  API keys are stored in your browser’s `localStorage` and never sent to a backend server. OCR and PDF processing happen entirely on the client side.
+  API keys are stored in your browser’s `localStorage`. OCR and PDF processing happen entirely on the client side.
 
 ---
 
 ## 🛠️ Tech Stack
 
-- **Frontend**: React.js with Tailwind CSS  
-- **Icons**: Lucide React  
-- **AI**: Google Gemini API  
-- **OCR**: Tesseract.js  
-- **PDF**: PDF.js (`pdfjs-dist`)
+- **UI Framework**: Tailwind CSS (via CDN)  
+- **Icons**: Lucide Icons  
+- **AI Engine**: Google Gemini API (v1beta)  
+- **OCR Engine**: Tesseract.js  
+- **PDF Engine**: PDF.js (`pdfjs-dist`)
 
 ---
 
-## 📦 Installation & Local Setup
+## 📦 Deployment Options
 
-To run this project locally, follow these steps:
+### Option 1: Standalone (Recommended for GitHub Pages)
 
-1. **Clone the repository**
-   ```bash
-   git clone https://github.com/your-username/lexverify-ai.git
-   cd lexverify-ai
+This project is designed to run as a single, self-contained `index.html` file.
+
+1. Create a new repository on GitHub.  
+2. Upload your `index.html` file.  
+3. Go to **Settings → Pages** and enable hosting from the main branch.  
+4. 🎉 Your app is live!
+
+### Option 2: Local Setup (Developer Mode)
+
+1. Clone the repository.  
+2. Open `index.html` directly in any modern web browser.  
+
+**Alternatively, use a local server:**
+```bash
+# If you have Python installed
+python -m http.server 8000
