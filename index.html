@@ -30,7 +30,7 @@
                 </div>
                 <div>
                     <h1 class="text-2xl font-bold tracking-tight">LexVerify AI</h1>
-                    <p class="text-slate-500 text-sm font-medium">Standalone Legal Validator v3.0</p>
+                    <p class="text-slate-500 text-sm font-medium">Standalone Legal Validator v3.1</p>
                 </div>
             </div>
             <button onclick="toggleSettings()" class="p-2 rounded-full text-indigo-600 bg-indigo-50 hover:bg-indigo-100 transition-all">
@@ -39,7 +39,7 @@
         </header>
 
         <!-- API Key Panel -->
-        <div id="settingsPanel" class="hidden mb-6 bg-white p-6 rounded-2xl border-2 border-indigo-100 shadow-xl">
+        <div id="settingsPanel" class="hidden mb-6 bg-white p-6 rounded-2xl border-2 border-indigo-100 shadow-xl animate-in slide-in-from-top-2">
             <div class="flex items-center gap-2 mb-4 font-bold text-slate-800">
                 <i data-lucide="key" class="text-indigo-600"></i> API Configuration
             </div>
@@ -96,7 +96,7 @@
                         </div>
                     </div>
                     <textarea id="editor" placeholder="Paste text or upload a file..." class="w-full h-80 p-4 bg-slate-50 border border-slate-200 rounded-xl outline-none font-mono text-sm resize-none focus:ring-2 focus:ring-indigo-200"></textarea>
-                    <div id="errorBox" class="hidden mt-4 p-4 bg-red-50 text-red-700 text-xs rounded-xl border border-red-100 font-bold"></div>
+                    <div id="errorBox" class="hidden mt-4 p-4 bg-red-50 text-red-700 text-xs rounded-xl border border-red-100 font-bold whitespace-pre-wrap"></div>
                 </div>
             </div>
         </section>
@@ -170,6 +170,7 @@
                 currentApiKey = val;
                 localStorage.setItem('lexverify_api_key', val);
                 toggleSettings();
+                document.getElementById('errorBox').classList.add('hidden');
             }
         }
 
@@ -178,7 +179,10 @@
             SAMPLES.forEach(s => {
                 const btn = document.createElement('button');
                 btn.className = "text-left p-3 rounded-xl border border-slate-100 hover:bg-indigo-50/50 hover:border-indigo-100 transition-all text-xs group";
-                btn.onclick = () => document.getElementById('editor').value = s.text;
+                btn.onclick = () => {
+                    document.getElementById('editor').value = s.text;
+                    document.getElementById('errorBox').classList.add('hidden');
+                };
                 btn.innerHTML = `
                     <div class="flex justify-between items-center mb-1">
                         <span class="font-bold text-slate-800">${s.title}</span>
@@ -259,50 +263,124 @@
             const box = document.getElementById('errorBox');
             box.innerText = msg;
             box.classList.remove('hidden');
+            box.scrollIntoView({ behavior: 'smooth' });
+        }
+
+        /**
+         * Mandatory Exponential Backoff Fetch Implementation
+         */
+        async function fetchWithRetry(url, options, maxRetries = 5) {
+            let delay = 1000;
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    const response = await fetch(url, options);
+                    
+                    if (response.ok) return response;
+                    
+                    // Specific handling for common API errors
+                    if (response.status === 401) throw new Error("Invalid API Key. Please update your key in Settings.");
+                    if (response.status === 404) throw new Error("Model endpoint not found. Please check API version.");
+                    if (response.status === 429) {
+                        // Rate limit - definitely retry
+                        if (i === maxRetries - 1) throw new Error("Rate limit exceeded. Please try again in a few minutes.");
+                    } else if (response.status >= 500) {
+                        // Server error - definitely retry
+                        if (i === maxRetries - 1) throw new Error("Google AI Server is currently unavailable (500).");
+                    } else {
+                        // Other non-ok responses
+                        const errorData = await response.json().catch(() => ({}));
+                        throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+                    }
+                } catch (err) {
+                    if (i === maxRetries - 1 || err.message.includes("API Key") || err.message.includes("endpoint")) throw err;
+                    // Exponential backoff
+                    await new Promise(resolve => setTimeout(resolve, delay));
+                    delay *= 2;
+                }
+            }
         }
 
         // AI Audit Logic
         async function runAudit() {
             const text = document.getElementById('editor').value.trim();
             if (!text) return showError("Please provide document text.");
-            if (!currentApiKey) return showError("Please set your Gemini API Key in settings.");
+            if (!currentApiKey) return showError("Please set your Gemini API Key in Settings.");
 
             const btn = document.getElementById('auditBtn');
+            const originalContent = btn.innerHTML;
             btn.disabled = true;
             btn.innerHTML = `<i data-lucide="loader-2" class="animate-spin"></i> Auditing...`;
             lucide.createIcons();
+            document.getElementById('errorBox').classList.add('hidden');
 
-            const prompt = `
-                Analyze this legal document. Provide JSON response only.
-                Rules: Check Mandatory Clauses (Parties, Date, Termination, Governing Law), 
-                Onerous terms (burdensome payment), Clawbacks (bonus recovery), and Prohibited (non-compete).
-                JSON format: 
-                {
-                    "score": 0-100, 
-                    "summary": "string", 
-                    "clauses": [{"name":"string", "found":bool}], 
-                    "risks": [{"level":"High|Low", "type":"string", "description":"string", "remedy":"string"}]
+            const systemPrompt = `You are a specialized Legal Document Auditor. 
+            Analyze the provided document and perform a risk assessment.
+            Categorize findings into: 
+            1. Mandatory Clauses (Parties, Date, Termination, Governing Law).
+            2. Onerous Clauses (Burdensome payment terms, unfair liability shifts).
+            3. Clawback Provisions (Recovery of paid bonuses/fees).
+            4. Prohibited/Restrictive (Illegal non-competes, restraint of trade).`;
+
+            const userQuery = `Analyze the following legal document and provide a structured audit report: \n\n${text}`;
+
+            const payload = {
+                contents: [{ parts: [{ text: userQuery }] }],
+                systemInstruction: { parts: [{ text: systemPrompt }] },
+                generationConfig: { 
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                        type: "OBJECT",
+                        properties: {
+                            score: { type: "NUMBER" },
+                            summary: { type: "STRING" },
+                            clauses: { 
+                                type: "ARRAY", 
+                                items: { 
+                                    type: "OBJECT", 
+                                    properties: { 
+                                        name: { type: "STRING" }, 
+                                        found: { type: "BOOLEAN" } 
+                                    } 
+                                } 
+                            },
+                            risks: { 
+                                type: "ARRAY", 
+                                items: { 
+                                    type: "OBJECT", 
+                                    properties: { 
+                                        level: { type: "STRING" }, 
+                                        type: { type: "STRING" }, 
+                                        description: { type: "STRING" }, 
+                                        remedy: { type: "STRING" } 
+                                    } 
+                                } 
+                            }
+                        },
+                        required: ["score", "summary", "clauses", "risks"]
+                    }
                 }
-            `;
+            };
 
             try {
-                const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${currentApiKey}`, {
+                const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent?key=${currentApiKey}`;
+                const response = await fetchWithRetry(url, {
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify({
-                        contents: [{ parts: [{ text: prompt + "\n\nDocument:\n" + text }] }],
-                        generationConfig: { responseMimeType: "application/json" }
-                    })
+                    body: JSON.stringify(payload)
                 });
 
                 const data = await response.json();
-                const result = JSON.parse(data.candidates[0].content.parts[0].text);
+                const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+                
+                if (!resultText) throw new Error("AI returned an empty response.");
+                
+                const result = JSON.parse(resultText);
                 displayResults(result);
             } catch (err) {
-                showError("AI Audit failed. Check API key/connection.");
+                showError(err.message || "An unexpected error occurred during the AI Audit.");
             } finally {
                 btn.disabled = false;
-                btn.innerHTML = `<i data-lucide="shield-check"></i> Run AI Audit`;
+                btn.innerHTML = originalContent;
                 lucide.createIcons();
             }
         }
@@ -328,7 +406,7 @@
 
             const rList = document.getElementById('riskList');
             rList.innerHTML = "";
-            if (data.risks.length === 0) {
+            if (!data.risks || data.risks.length === 0) {
                 rList.innerHTML = `<div class="p-10 text-center text-slate-400 font-bold">No risks detected.</div>`;
             } else {
                 data.risks.forEach(r => {
@@ -341,7 +419,7 @@
                         </div>
                         <h4 class="font-bold text-slate-800 mb-1">${r.description}</h4>
                         <div class="mt-3 p-3 bg-emerald-50 rounded-lg text-xs text-emerald-800">
-                            <strong>REMEDY:</strong> ${r.remedy}
+                            <strong class="uppercase text-[9px] mr-1">Proposed Remedy:</strong> ${r.remedy}
                         </div>
                     `;
                     rList.appendChild(div);
