@@ -1,13 +1,13 @@
 # LexVerify AI: Legal Document Validator 
 
-**LexVerify AI** is a high-performance, browser-based legal document auditor. It leverages **Gemini 2.5 Flash AI** to perform deep **legal reasoning** on contracts—identifying missing mandatory clauses, onerous payment terms, aggressive clawback provisions, and prohibited restrictive covenants.
+**LexVerify AI** is a high-performance, browser-based legal document auditor. It leverages **Gemini 3.1 Flash AI** to perform deep **legal reasoning** on contracts—identifying missing mandatory clauses, onerous payment terms, aggressive clawback provisions, and prohibited restrictive covenants.
 
 ---
 
 ## 🚀 Key Features
 
 - **AI-Powered Validation**  
-  Deep analysis of contract text using the **Gemini 2.5 Flash** model with structured JSON output.
+  Deep analysis of contract text using the **Gemini 3.1 Flash** model with structured JSON output.
 
 - **Built-in OCR Support**  
   Integrated **Tesseract.js** allows users to upload images (JPG/PNG) of physical documents for instant text extraction.
